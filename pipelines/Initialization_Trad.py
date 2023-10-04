@@ -69,7 +69,7 @@ class Initializer():
                  -rad * np.sin(theta_y)]).float().view(3, 1))
             w2c_pose = torch.cat([w2c_rot, t], dim=-1)
             se3 = camera.Lie().SE3_to_se3(w2c_pose).float()
-            Extrinsic_init_cam0 = se3
+            Extrinsic_init_cam0 = se3 # 第一个相机的位姿
             # ---------------2 view initialization-----------------
             id0, id1 = var.indx_init
             rel_id = id1 if id1 < id0 else id1 - 1
@@ -86,7 +86,7 @@ class Initializer():
             two_view_t = torch.from_numpy(answer["tvec"]).view(3, 1) * scale_init
             rel_pose = torch.cat([two_view_rot, two_view_t], dim=-1).float()
             Extrinsic_init_cam1 = camera.pose.compose_pair(w2c_pose, rel_pose)
-            Extrinsic_init_cam1 = camera.Lie().SE3_to_se3(Extrinsic_init_cam1).float()
+            Extrinsic_init_cam1 = camera.Lie().SE3_to_se3(Extrinsic_init_cam1).float() # 第二个相机的位姿
             Extrinsic_init = [Extrinsic_init_cam0, Extrinsic_init_cam1]
             # --------- traditional triangulation ----------------------
             import cv2 as cv
@@ -96,7 +96,7 @@ class Initializer():
             P1 = np.matmul(intr, pose1)
             pts3D = cv2.triangulatePoints(P0.numpy(), P1.numpy(), kypts0.transpose(), kypts1.transpose())
             pts3D_out = pts3D[:3, :] / pts3D[3:4, :]
-            self.tri_pts = pts3D_out.transpose()
+            self.tri_pts = pts3D_out.transpose() # 前两张图像三角化得到的点云
         else:
             Extrinsic_init = [None, None]
         for i in range(2):
@@ -118,7 +118,7 @@ class Initializer():
             lr_sdf = opt.optim.init.lr_sdf
             lr_sdf_end = opt.optim.init.lr_sdf_end
             optim = getattr(torch.optim, opt.optim.algo)
-            self.optim = optim([{'params': sdf_func.parameters(), 'lr': lr_sdf}])
+            self.optim = optim([{'params': sdf_func.parameters(), 'lr': lr_sdf}]) # TODO: 这里是写错了么？怎么在循环内初始化优化器呢
             sched = getattr(torch.optim.lr_scheduler, getattr(opt.optim.sched, "type"))
             self.sched = sched(self.optim, gamma=(lr_sdf_end / lr_sdf) ** (1. / max_iter))
 

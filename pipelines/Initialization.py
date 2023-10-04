@@ -219,6 +219,8 @@ class Initializer():
         cameraset.eval_poses()
 
     def essential_2view(self, kypts0, kypts1, intr, poses, ret, poses_gt=None):
+        # 根据kypts0和kypts1，通过五点法，得到相对位姿
+        # 根据poses，得到估计的相对位姿
         kypts0 = kypts0.cpu().detach().numpy()
         kypts1 = kypts1.cpu().detach().numpy()
         intr = intr.cpu().detach().numpy()
@@ -230,18 +232,30 @@ class Initializer():
             loss_rel1 = loss_rel2 = 0
         else:
             two_view_rot = pycolmap.qvec_to_rotmat(answer["qvec"])
+            
+            # 估计位姿 rel_pose_est
             rel_pose_est = camera.pose.compose_pair(camera.pose.invert(poses[0]), poses[1])
+            
+            # loss_rel1和loss_rel2 是 5点法计算的位姿 answer 与 估计位姿 rel_pose_est 之间的差距
             loss_rel1 = (1 - torch.sum(torch_F.normalize(rel_pose_est[:, 3:], dim=0) * torch_F.normalize(
                 torch.from_numpy(answer["tvec"]).cuda()[:, None].float(), dim=0)))
             loss_rel2 = torch_F.smooth_l1_loss(rel_pose_est[:3, :3], torch.from_numpy(two_view_rot).cuda().float(),
                                                reduction="sum")
+            
             # print the eval
+            # 真实位姿 rel_pose_gt
             rel_pose_gt = camera.pose.compose_pair(camera.pose.invert(poses_gt[0]), poses_gt[1])
+            
+            
+            # 5点法计算的位姿 answer 与 真实位姿 rel_pose_gt 之间的差距
             t_error = camera.translation_dist(rel_pose_gt[:3, 3], torch.from_numpy(answer["tvec"]).cuda())
             r_error = camera.rotation_distance(rel_pose_gt[:3, :3].cpu().float(),
                                                torch.from_numpy(two_view_rot[:3, :3]).float()) / torch.pi * 180
             print(f"5 points algo rot_error:{r_error}")
             print(f"5 points algo translation_error:{t_error}")
+            
+            
+            # 本方法计算的位姿 rel_pose_est 与 真实位姿 rel_pose_gt之间的差距
             t_error = camera.translation_dist(rel_pose_gt[:3, 3], rel_pose_est[:3, 3])
             r_error = camera.rotation_distance(rel_pose_gt[:3, :3], rel_pose_est[:3, :3]) / torch.pi * 180
             print(f"our algo rot_error:{r_error}")
