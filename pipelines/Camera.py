@@ -505,10 +505,10 @@ class CameraSet():
 
         d_points, sdf_tracks, _, mask_finish = sdf_func.sphere_tracing(centers.view(1, -1, 3), rays.view(1, -1, 3),
                                                                        sdf_func, iter=0)
-        depth_mlp = depth_mlp.view([*centers.shape[:2], 1])
+        depth_mlp = depth_mlp.view([*centers.shape[:2], 1]) # depth estimated by volumetric rendering
         normal_mlp = normal_mlp.view(*centers.shape)
-        rgb = rgb.view(*centers.shape)
-        d_points = d_points.view(*depth_mlp.shape)
+        rgb = rgb.view(*centers.shape)                      # rgb rendered
+        d_points = d_points.view(*depth_mlp.shape)          # depth estimated by sphere tracing
         sdf_tracks = sdf_tracks.view(*depth_mlp.shape)
 
         mask_finish = mask_finish.view(*depth_mlp.shape)
