@@ -52,7 +52,7 @@ class Model(base.Model):
         # prefetch all training data
         self.train_data.prefetch_all_data(opt)
         self.train_data.all = edict(util.move_to_device(self.train_data.all, opt.device))
-        n_views_geo_path = f"data/{opt.data.dataset}/{opt.data.scene}/n_views.npy"
+        n_views_geo_path = f"{opt.data.root}/{opt.data.scene}/n_views.npy"
         self.n_views_geo = np.load(n_views_geo_path, allow_pickle=True)
 
     def save_checkpoint(self, opt, ep=0, it=0, latest=True):
@@ -96,7 +96,7 @@ class Model(base.Model):
         var = self.load_matches(opt)
 
         # pose graph keep the same with colmap
-        pose_graph_path = f"data/{opt.data.dataset}/{opt.data.scene}/pose_graph.npy"
+        pose_graph_path = f"{opt.data.root}/{opt.data.scene}/pose_graph.npy"
 
         if os.path.exists(pose_graph_path) == False:
             pose_graph = [i for i in range(len(self.train_data.all.image)) if i % 3 == 0]
