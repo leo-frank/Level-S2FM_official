@@ -39,7 +39,7 @@ def read_matches_from_db(database_path: Path
             d1, d2 = desc[id1][match[:, 0]], desc[id2][match[:, 1]]
             scores.append(np.einsum('nd,nd->n', d1, d2))
     db.close()
-    return pairs, matches, scores
+    return pairs, matches, scores # 这三者都是list，pairs的每一项存放了两个匹配的图像名称，matches的每一项表明每一对图像之间的匹配点的坐标（奇怪，（797，2）），scores来衡量每一个match的得分（797，1）
 
 
 def read_image_id_to_name_from_db(database_path: Path) -> Dict[int, str]:
@@ -74,7 +74,7 @@ def main():
 
     args = parser.parse_args()
 
-    working_path = f"{args.dataroot}/{args.data}/{args.scene}"
+    working_path = f"./test_data"
 
     if args.clean and os.path.exists(f"{working_path}/database.db"):
         os.remove(f"{working_path}/database.db")
@@ -170,8 +170,8 @@ def main():
     while len(sequence)>len(img_dict):
         sequence.pop()
     
-    img_name_sequenc=[img_dict[int(i)] for i in sequence]
-    pose_graph=[img_files.index(n_i) for n_i in img_name_sequenc]
+    img_name_sequenc=[img_dict[int(i)] for i in sequence] # 重建时候的图像名称顺序 ['000024.png', '000043.png', '000033.png', '000023.png', '000032.png', '000034.png', '000014.png', '000025.png', '000013.png', '000015.png', '000009.png', '000008.png', '000010.png', '000012.png', ...]
+    pose_graph=[img_files.index(n_i) for n_i in img_name_sequenc] # 重建时候的图像索引顺序 [24, 43, 33, 23, 32, 34, 14, 25, 13, 15, 9, 8, 10, 12, ...]
     np.save(f"{working_path}/pose_graph.npy", pose_graph)
 
     for idx_i in range(len(img_files)):
