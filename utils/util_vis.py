@@ -1061,7 +1061,7 @@ def generate_videos_synthesis(opt,):
     os.system(
         "ffmpeg -y -framerate 30 -i {0}/depth_%d.png -pix_fmt yuv420p {1} >/dev/null 2>&1".format(novel_path,
                                                                                                           depth_vid_fname))
-def draw_pcd(pts3D,output_path=None,color=None):
+def draw_pcd(pts3D,output_path=None,color=None): # write pcd by open3d
     if type(pts3D)==torch.tensor:
         pts3D=pts3D.detach().cpu().numpy()
     if type(color)==torch.tensor:
@@ -1072,7 +1072,7 @@ def draw_pcd(pts3D,output_path=None,color=None):
         pcd.colors = o3d.utility.Vector3dVector(color)
     o3d.io.write_point_cloud(output_path, pcd)
 
-def vis_by_wis3d_pcd(wis3d,pcd_path,name):
+def vis_by_wis3d_pcd(wis3d,pcd_path,name): # visualize pcd by wis3d
     wis3d.add_point_cloud(pcd_path, name=name)
     pcd = trimesh.load_mesh(pcd_path)
     wis3d.add_point_cloud(pcd.vertices, pcd.colors, name=name)
