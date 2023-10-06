@@ -22,6 +22,7 @@ import open3d as o3d
 import open3d.visualization.gui as gui
 import open3d.visualization.rendering as rendering
 import matplotlib.cm as cm 
+from loguru import logger
 
 def create_frustum(K, w2c=None):
     near = 0.2 # near clipping plane
@@ -55,8 +56,8 @@ class PipelineView:
     def __init__(self, 
                     filesdict, 
                     vfov=60, 
-                    width=1024,
-                    height=1024,
+                    width=1024, # width of camera
+                    height=1024, # height of camera
                     dest='teaser',
                     render=True,
                     **callbacks):
@@ -212,6 +213,7 @@ class PipelineView:
 
     @staticmethod
     def load_cameras(cam_file):
+        # cam_file is a json file, like output/DTU/65_dual/mesh/cam00000002.json
         with open(cam_file) as f:
             cameras = json.load(f)
 
@@ -229,7 +231,7 @@ class PipelineView:
                 height = camval['img_size'][1]
             )
             cameras_dict.append(camera_obj)
-
+        logger.info("current cameras_dict length: {}".format(len(cameras_dict)))
         return cameras_dict
 
     def _on_point_size(self, size):
@@ -325,7 +327,12 @@ class PipelineView:
         pcd = self.load_pcd(info['pcd'])
         cameras = self.load_cameras(info['cam'])
         
-        print(len(self.queue))
+        from loguru import logger
+        logger.info("len(self.queue): {}".format(len(self.queue)))
+        logger.info("update info: {}".format(info))
+        
+        
+        ################################################## show camera #########################################################
         focal_length = 1000
         intrinsic = o3d.camera.PinholeCameraIntrinsic(width=self.width,height=self.height, fx=focal_length,fy=focal_length, cx=self.width//2, cy=self.height*0.75)
         o3d_mat = np.array(
@@ -337,7 +344,8 @@ class PipelineView:
         )
         RT = cameras[-1].W2C
 
-        
+            
+
         T_new = np.eye(4)
         T_new[:3,3] = [0,0,np.linalg.norm(RT[:3,3])*2]
         T_new[:3,:3] = Rotation.from_euler('xyz',[0,30,0],degrees=True).as_matrix()
@@ -345,17 +353,23 @@ class PipelineView:
         w2c = o3d_mat@T_new@RT
         
         # self.pcdview.setup_camera(intrinsic, o3d_mat@cameras[-1].W2C, self.pcd_bounds)
-        self.pcdview.setup_camera(intrinsic, w2c, self.pcd_bounds)
+        if self.flag_gui_init == False:
+            self.pcdview.setup_camera(intrinsic, w2c, self.pcd_bounds)
         # self.pcdview.scene.camera.look_at([0, 0, 1.5], [0, 3, 1.5], [0, -1, 0])
         for i, camera in enumerate(cameras):
+            if i == 0:
+                logger.info(camera.frustum.points[4])
             if self.pcdview.scene.has_geometry(f'cam-{camera.id}'):
                 self.pcdview.scene.remove_geometry(f'cam-{camera.id}')
-
                 self.pcdview.scene.add_geometry(f'cam-{camera.id}', camera.frustum, self.cam_material)
             else:
                 self.pcdview.scene.add_geometry(f'cam-{camera.id}', camera.frustum, self.ccam_material if not all else self.cam_material)
-
-
+        ################################################## show camera #########################################################
+        
+        
+        
+        
+        ################################################## show mesh #########################################################
         if self.pcdview.scene.has_geometry('mesh'):
             self.pcdview.scene.remove_geometry('mesh')
         
@@ -364,12 +378,22 @@ class PipelineView:
         self.pcdview.scene.add_geometry('mesh', mesh,self.pcd_material)
         if not self.show_mesh:
             self.pcdview.scene.show_geometry('mesh', False)
+        ################################################## show mesh #########################################################
 
 
+
+
+
+        ################################################## show point cloud #########################################################
         if self.pcdview.scene.has_geometry('pcd'):
             self.pcdview.scene.remove_geometry('pcd')
         pcd = self.load_pcd(info['pcd'])
         self.pcdview.scene.add_geometry('pcd', pcd, self.point_material)
+        ################################################## show point cloud #########################################################
+        
+
+
+
 
         self.flag_gui_init = True
 

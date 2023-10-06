@@ -2,7 +2,7 @@ import sys,os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import argparse
 from controller import PipelineController
-from loguru import logger
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Incremental Structure from Motion')
     parser.add_argument('--root', type=str, required=True, help='root directory of the data')
@@ -19,11 +19,8 @@ def main():
     opt = parse_args()
     camfiles = [f for f in os.listdir(opt.root) if f.endswith('.json') and 'gt' not in f]
     camfiles.sort()
-    
-    logger.info("camfiles: {}".format(camfiles))
 
     view_ids = [(int(cam[3:-5]),cam[3:-5]) for cam in camfiles]
-    logger.info("view_ids: {}".format(view_ids))
 
     filesdict = []
     
@@ -33,8 +30,7 @@ def main():
         cam_path = os.path.join(opt.root, f'cam{pair[1]}.json')
         mesh_path = os.path.join(opt.root, f'{pair[1]}.ply')
         filesdict.append({'pcd': pcd_path, 'cam': cam_path, 'mesh': mesh_path})
-    logger.info("len(filesdict): {}\n".format(len(filesdict)))
-    logger.info(filesdict)
+
     app = PipelineController(filesdict,width=1024,height=512,dest=opt.output, render=not opt.skip_render)
         
     
