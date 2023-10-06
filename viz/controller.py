@@ -22,6 +22,7 @@ import open3d as o3d
 import open3d.visualization.gui as gui
 import open3d.visualization.rendering as rendering
 from viewer import PipelineView
+from loguru import logger
 
 class PipelineController:
     def __init__(self, filesdict, width, height, dest, render=True):
@@ -38,6 +39,8 @@ class PipelineController:
             on_toggle_mesh = self.on_toggle_mesh,
             )
         self.render = render
+        logger.info("self.view.dest: {}".format(self.view.dest))
+        logger.info("self.render: {}".format(self.render))
         if self.render:
             threading.Thread(target=self.update_thread).start()
         else:
@@ -68,9 +71,9 @@ class PipelineController:
         rendered_images = []        
         for i in range(1,len(self.view.filesdict)):
             rendered_images.append(
-                Image.open(f'{self.view.dest}/{i:06d}.jpg'))
+                Image.open(f'{self.view.dest}/{i:06d}.jpg')) # where does this come from ?
 
-        rendered_images[1].save(f'{self.view.dest}.gif', save_all=True, append_images=rendered_images[1:], optimize=True, duration=100, loop=0)    
+        rendered_images[0].save(f'{self.view.dest}.gif', save_all=True, append_images=rendered_images[1:], optimize=True, duration=100, loop=0)    
         
         # self.view.window.close()
     def on_toggle_mesh(self, state):
