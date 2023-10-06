@@ -2,6 +2,11 @@ levels2fm-opendata/*
 opendata*
 scripts/*
 .vscode/*
+teaser/*
+teaser*
+teaser.gitf
+options/*
+scripts/*
 
 
 output/*
