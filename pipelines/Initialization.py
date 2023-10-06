@@ -15,6 +15,7 @@ from . import Point3D
 from typing import Optional
 from multiprocessing.dummy import Pool as ThreadPool
 import pycolmap
+from loguru import logger
 
 
 class Initializer():
@@ -144,9 +145,10 @@ class Initializer():
             ref_indx: Optional[int] = 0,
             src_indx: Optional[int] = 1):
         loader = tqdm.trange(self.max_iter, desc="Initialization", leave=False)
+        logger.info("ref index: {}, src index: {}".format(ref_indx, src_indx))
         camera0 = cameraset.cameras[ref_indx]
         camera1 = cameraset.cameras[src_indx]
-        for it in loader:
+        for it in loader: # 500
 
             ret = edict()
             self.optim.zero_grad()
@@ -169,10 +171,12 @@ class Initializer():
                              ret=ret, Renderer=Renderer)
 
             loss = self.compute_loss(ret)
-            
-            if it%10==0: #TODO: add an option to control the frequency of printing
-                self.print_loss(loss_dict=loss,PSNR=ret.get('PSNR'))
             loss = self.summarize_loss(self.opt, loss)
+            
+            if it%10==0: # print stastics every 10 iterations, including such  terms:
+                # 'PSNR': 31.099340438842773, 'reproj_error': 2.2479755878448486, 'sdf_surf': 0.004002795554697514, 'eikonal_loss': 0.034246332943439484, 'rgb': 0.010943753644824028, 'DC_Loss': 0.001470054849050939
+                self.print_loss(loss_dict=loss,PSNR=ret.get('PSNR'))
+
             loss.all.backward()
 
             self.optim.step()

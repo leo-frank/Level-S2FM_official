@@ -17,7 +17,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "../external"))
 import random
 from utils.util import log, debug
 from utils import camera
-
+from loguru import logger
 # from models.cnn_model.encoder import SpatialEncoder
 epsilon = 1e-6
 from typing import Optional
@@ -584,6 +584,7 @@ class CameraSet():
     def eval_poses(self,
                    pick_cam_id=None,
                    mode="normal"):
+        # print( ATE, rot_error, t_error )
         poses_all, poses_gt_all = self.get_all_poses(pick_cam_id=pick_cam_id)
 
         if poses_all.shape[0] > 2:

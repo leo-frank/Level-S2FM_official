@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from . import Camera
 from . import Point3D
 from utils.util import extract_mesh
+from loguru import logger
 import numpy as np
 import torch.nn.functional as torch_F
 
@@ -134,11 +135,11 @@ class Model():
                     cameraset: Camera.CameraSet,
                     new_camera: Camera.Camera,
                     pointset: Point3D.Point3DSet,
-                    vis_only: bool = True,
+                    vis_only: bool = False,
                     cam_only: bool = False):
         os.makedirs("{0}/mesh".format(opt.output_path), exist_ok=True)
         opt.mesh_dir = "{0}/mesh".format(opt.output_path)
-        # ---------------------------- vis pts ------------------------------------------
+        # ---------------------------- vis point clouds: _pointcloud_org.ply & _pointcloud.ply ------------------------------------------
         view_ord = len(cameraset)
         # vis pointset
         pts3d_vis = torch.cat(pointset.get_all_parameters()["xyzs"], dim=0).detach().cpu().numpy()
@@ -156,14 +157,15 @@ class Model():
         pts3d_vis = pts3d_vis[mask_vis.squeeze()]
         util.draw_pcd(pts3d_vis, f"{opt.output_path}/mesh/{view_ord}_pointcloud.ply",
                       (sdf_value - sdf_value.min()) / (sdf_value.max() - sdf_value.min()) * sdf_grad)
-        # ---------------------------- vis cam ------------------------------------------
+        logger.debug("save {view_ord}_pointcloud_org.ply & {view_ord}_pointcloud.ply".format(view_ord,view_ord))
+        # ---------------------------- vis cameras: cam00000022.json & cam00000022_gt.json------------------------------------------
         cameras = {}
         for cam_i in cameraset.cameras + [new_camera]:
             camera_i = {"{}".format(cam_i.id): {"K": util.intr2list(cam_i.intrinsic),
                                                 "W2C": util.pose2list(cam_i.get_pose().squeeze()),
                                                 "img_size": opt.data.image_size}}
             cameras.update(camera_i)
-        util.dict2json(os.path.join(opt.mesh_dir, 'cam{:08d}.json'.format(view_ord)), cameras)
+        util.dict2json(os.path.join(opt.mesh_dir, 'cam{:08d}.json'.format(view_ord)), cameras) # cam00000022.json
         poses_est, poses_gt = cameraset.get_all_poses()
         pose_aligned_gt, _ = cameraset.prealign_cameras(opt, poses_gt, poses_est)
         pose_wis = torch.cat([poses_est.cpu(),
@@ -178,9 +180,12 @@ class Model():
         pose_wis = torch.cat([pose_aligned_gt.cpu(),
                               torch.tensor([[0, 0, 0, 1]]).repeat(poses_est.shape[0], 1, 1)], dim=1)
         # self.wis3d.add_camera_trajectory(torch.linalg.inv(pose_wis), name=f"{view_ord}_poses_gt")
-        util.dict2json(os.path.join(opt.mesh_dir, 'cam{:08d}_gt.json'.format(view_ord)), cameras)
+        util.dict2json(os.path.join(opt.mesh_dir, 'cam{:08d}_gt.json'.format(view_ord)), cameras) # cam00000022_gt.json
         if cam_only == True:
             return
+        logger.debug("save cam{:08d}_gt.json & cam{:08d}.json".format(view_ord, view_ord))
+        # ------------------------------------------------- save mesh ----------------------------------------------------------------------
+        vis_only = False # always extract mesh 
         if vis_only == False:
             # visualize the mesh
             extract_mesh(
@@ -191,9 +196,11 @@ class Model():
                 show_progress=True,
                 extra_info=None,
                 N=512)
+            logger.debug("save {:08d}.ply".format(view_ord))
             # util_vis.vis_by_wis3d_mesh(self.wis3d, os.path.join(opt.mesh_dir, '{:08d}.ply'.format(view_ord)),
             #                            f"{view_ord}_mesh")
 
+        # ------------------------------------------------- save 6 files in image/index ----------------------------------------------------------------------
         # visualize the novel view's rgb
         ret = new_camera.get_depth(sdf_func=self.sdf_func, mode="eval")
         ret_render = new_camera.render_img_by_slices(sdf_func=self.sdf_func,

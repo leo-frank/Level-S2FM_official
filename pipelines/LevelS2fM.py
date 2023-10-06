@@ -6,7 +6,7 @@ import torch
 import tqdm
 import utils.util as util
 from easydict import EasyDict as edict
-
+from loguru import logger
 from utils.util import log
 import utils.camera as camera
 from . import base
@@ -124,9 +124,10 @@ class Model(base.Model):
         random_view = None
 
         rendered_rgb_list = []
-        for self.it in loader:
+        for self.it in loader: # 20000000
             var.iter = self.it
             if random_view is not None:
+                logger.debug("rendering a random view")
                 rendered_output = self.camera_set.cameras[0].render_img_by_slices(
                     self.sdf_func,
                     self.color_func,
@@ -142,6 +143,7 @@ class Model(base.Model):
                 #     plt.show()
                 # import pdb; pdb.set_trace()
             if len(self.camera_set) < 2:
+                logger.debug("initializition phase")
                 # Initialization
                 if opt.resume == False:
                     var.indx_init = [pose_graph[0], pose_graph[1]]
@@ -173,6 +175,7 @@ class Model(base.Model):
                 #     extra_info=self.sdf_func,
                 #     N=512)
                 if opt.resume == False:
+                    # init 2 view, save checkpoint & save geometry
                     Initializer.run(self.camera_set, self.point_set,
                                     self.sdf_func, self.color_func, Renderer=self.Renderer)
                     self.save_checkpoint(opt, ep=None, it=self.it + 1, latest=False)
@@ -181,7 +184,7 @@ class Model(base.Model):
 
                 random_view = slerp(self.camera_set.cameras[0].get_pose()[0], self.camera_set.cameras[1].get_pose()[0], 0.5)                                
                 del Initializer
-            else:
+            else: # 开始incremental sfm
                 if (opt.resume == True) & (load_finish == False):
                     print("------reloading cameras-------")
                     for i in tqdm.tqdm(range(len(self.cam_info_reloaded["cam_id"][2:])), desc="reloading cameras"):
@@ -234,13 +237,13 @@ class Model(base.Model):
                         continue
                 # 开始incremental sfm
                 pose_graph_left = [p for p in pose_graph if p not in self.camera_set.cam_ids]
-                print(f"---------------- {len(pose_graph_left)} frames left ------------------")
+                logger.info(f"---------------- {len(pose_graph_left)} frames left ------------------")
                 if len(pose_graph_left) == 0:
                     self.vis_geo_rgb(opt, cameraset=self.camera_set, new_camera=self.camera_set.cameras[0],
                                      pointset=self.point_set, cam_only=True)
-                    print(f"finish!")
+                    logger.info(f"finish!")
 
-                print("---------- searching next best view -------------")
+                logger.info("---------- searching next best view -------------")
                 if opt.nbv_mode == "colmap":
                     new_id = pose_graph_left[0]
                 else:
@@ -279,7 +282,7 @@ class Model(base.Model):
                     nbv = np.argmax(pnp_score)
                     print("--------- max number is {} --------------".format(pnp_num_mches[nbv]))
                     new_id = pose_graph_left[nbv]
-                print(f"-------------the best view next id is {new_id}--------------")
+                logger.info(f"-------------the best view next id is {new_id}--------------")
                 img_new = self.train_data.all.image[new_id:new_id + 1]
                 camera_new = Camera.Camera(opt=opt,
                                            id=new_id,
@@ -293,8 +296,8 @@ class Model(base.Model):
                                            Normal_omn=None,
                                            Extrinsic=None,
                                            idx2d_to_3d=None)
-                print(f"Total cameras num:{len(self.camera_set.cam_ids)}")
-                print(f"new cam_id: {new_id}")
+                logger.info(f"Total cameras num:{len(self.camera_set.cam_ids)}, still not add the new camera")
+                logger.info(f"new cam_id: {new_id}")
                 # -------------------Registration: PnP+Triangulation----------------------------------------------
                 if opt.Ablate_config.tri_trad == True:
                     Register = Registration_Trad.Registration(opt, self.sdf_func, cameraset=self.camera_set)
@@ -350,7 +353,7 @@ class Model(base.Model):
                         reproj_tem = 100
                         iter_cycle = 0
                         mode = "sfm_refine"
-                        print("-------------- reproj+rendering registration refine --------------------")
+                        logger.info("reproj+rendering registration refine")
                         while (reproj_tem > 2.5):
                             if iter_cycle >= 1:
                                 break
@@ -371,13 +374,13 @@ class Model(base.Model):
                             torch.cuda.empty_cache()
                             iter_cycle += 1
                     # ------------------local ba---------------------------------------------------------------------
+                    logger.info("Local BA")
                     reproj_tem = 100
                     iter_cycle = 0
                     mode = "sfm"
                     while (reproj_tem > 1.):
                         if iter_cycle >= 5:
                             break
-                        # -----------------------------------
                         Local_BA_id = [camera_new.id] + src_cam_id
                         Bundler = BA.BA(opt=opt,
                                         cameraset=self.camera_set,
@@ -390,18 +393,19 @@ class Model(base.Model):
                                                     color_func=self.color_func,
                                                     Renderer=self.Renderer)
                         print(f"local frames num:{len(src_cam_id + [camera_new.id])}")
+                        print("reproj_tem:", reproj_tem)
                         rot_error, t_error = self.camera_set.eval_poses(pick_cam_id=src_cam_id + [camera_new.id])
                         del Bundler
                         torch.cuda.empty_cache()
                         iter_cycle += 1
                     # ------------------global ba---------------------------------------------------------------------
+                    logger.info("Global BA")
                     reproj_tem = 100
                     iter_cycle = 0
                     mode = "sfm"
                     while (reproj_tem > 1.):
                         if iter_cycle >= 5:
                             break
-                        # -----------------global ba--------------------------------------------------------------------
                         Bundler = BA.BA(opt=opt,
                                         cameraset=self.camera_set,
                                         pointset=self.point_set,
@@ -412,12 +416,14 @@ class Model(base.Model):
                         reproj_tem = Bundler.run_ba(sdf_func=self.sdf_func,
                                                     color_func=self.color_func,
                                                     Renderer=self.Renderer)
+                        print("reproj_tem:", reproj_tem)
                         rot_error, t_error = self.camera_set.eval_poses()
                         del Bundler
                         torch.cuda.empty_cache()
                         iter_cycle += 1
                     # ------------------ rendering refine -------------------------------------------------------------
                     if opt.sfm_mode == "full":
+                        logger.info("rendering refine") # 'PSNR': 16.81053924560547, 'eikonal_loss': 0.1209036335349083, 'rgb': 0.05632907524704933, 'DC_Loss': 0.0019330104114487767, 'sdf_surf': 0.0005162741290405393, 'tracing_loss': 0.00271444208920002} 
                         Refiner = rendering_refine.Refine(opt=opt,
                                                           cameraset=self.camera_set,
                                                           pointset=self.point_set,
@@ -438,15 +444,15 @@ class Model(base.Model):
                     save_latest = False
                 else:
                     save_latest = True
-                self.vis_geo_rgb(opt, cameraset=self.camera_set, new_camera=camera_new, pointset=self.point_set,
-                                 vis_only=False, cam_only=True)
-                if (len(self.camera_set.cameras) % opt.freq.ckpt == 0) & (opt.sfm_mode == "full"):
+                if opt.sfm_mode == "full":
                     self.vis_geo_rgb(opt, cameraset=self.camera_set, new_camera=camera_new, pointset=self.point_set,
                                      vis_only=False, cam_only=False)
                 self.save_checkpoint(opt, ep=None, it=self.it + 1, latest=save_latest)
 
+            logger.info("end of registration of image {}".format(new_id))
             # if self.it % opt.freq.ckpt == 0: self.save_checkpoint(opt, ep=None, it=self.it + 1)
             pose_graph_i += 1
+            logger.info("pose_graph_i={}".format(pose_graph_i))
             torch.cuda.empty_cache()
             # after training
             # if opt.tb:
